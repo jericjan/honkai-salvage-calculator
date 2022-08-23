@@ -2,12 +2,15 @@
 
 import re
 from tkinter import Label, Tk, Frame
+from tkinter.messagebox import showinfo
 from threading import Thread
+import sys
 import cv2
 import numpy as np
 from PIL import ImageGrab, Image
 import pyautogui as pg
 from pytesseract import pytesseract
+from win32gui import FindWindow, GetWindowRect
 
 
 img_dict = {
@@ -31,6 +34,33 @@ info = Frame(window, name="info")
 info.pack(side="top", fill="x")
 solutions_frame = Frame(window, name="solutions")
 solutions_frame.pack(side="top", fill="x", pady=10)
+
+
+def get_window_size():
+    "Gets the game's window size"
+    try:
+        window_rect = GetWindowRect(FindWindow(None, "Honkai Impact 3"))
+    except:
+        try:
+            window_rect = GetWindowRect(FindWindow(None, "Honkai Impact 3rd"))
+        except:
+            showinfo(
+                title="Game not running",
+                message="Can't find a running HI3 game. Exiting...",
+            )
+            sys.exit()
+    left, top, width, height = window_rect
+    width = width - left
+    height = height - top
+    return (width, height)
+
+
+if get_window_size() != (1286, 749):
+    showinfo(
+        title="Hey!",
+        message="The game needs to be running in 1280x720 windowed mode for this program to work. Sorry.",
+    )
+    sys.exit()
 
 
 def make_gui():

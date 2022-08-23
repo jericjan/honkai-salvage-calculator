@@ -1,0 +1,5 @@
+pytesseract==0.3.10
+tk==0.1.0
+pywin32==304
+PyAutoGUI==0.9.53
+opencv-python==4.6.0.66
