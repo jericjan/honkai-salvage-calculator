@@ -191,8 +191,11 @@ def scanner():
 
 
 thread = Thread(target=scanner)
+thread.daemon = True
 thread2 = Thread(target=make_gui)
+thread2.daemon = True
 thread3 = Thread(target=calculate)
+thread3.daemon = True
 thread.start()
 thread2.start()
 thread3.start()
