@@ -6,6 +6,8 @@ from tkinter.messagebox import showinfo, askyesno
 from threading import Thread
 import sys
 import os
+import time
+
 import cv2
 import numpy as np
 from PIL import ImageGrab, Image
@@ -119,9 +121,7 @@ def calculate():
         sell_mats_1 = max(sell_mats_1, 0)
         sell_mats_2 = max(sell_mats_2, 0)
         label = window.nametowidget(".solutions.2.skill_mats")
-        label.configure(
-            text=f"{sell_mats_1} or {sell_mats_2} Advanced Skill Material(s)"
-        )
+        label.configure(text=f"{sell_mats_1}-{sell_mats_2} Advanced Skill Material(s)")
 
     window.after(1000, calculate)
 
@@ -164,7 +164,7 @@ def make_border(img, color, thickness):
 
 def thing_locater(screen, filename, name):
     "Looks for the item on the screen and sends the amount to the GUI"
-    thing = pg.locateOnScreen(f"images/{filename}.png", confidence=0.8)
+    thing = pg.locate(f"images/{filename}.png", screen, confidence=0.8)
     if thing:
         # crops to the target item count
         start_row = thing.top + thing.height
@@ -226,12 +226,23 @@ def thing_locater(screen, filename, name):
 def scanner():
     "calls thing_locater in threads"
     while True:
+        start_time = time.time()
+        threads = []
         for filename, name in img_dict.items():
             print(f"Looking for {filename}...")
             screen = np.array(ImageGrab.grab())
             screen = cv2.cvtColor(src=screen, code=cv2.COLOR_BGR2RGB)
             locater_thread = Thread(target=thing_locater, args=(screen, filename, name))
-            locater_thread.start()
+            threads.append(locater_thread)
+
+        # Start them all
+        for thread in threads:
+            thread.start()
+
+        # Wait for all to complete
+        for thread in threads:
+            thread.join()
+        print(f"---------------END - {(time.time() - start_time):.2f}")
 
 
 thread = Thread(target=scanner)
