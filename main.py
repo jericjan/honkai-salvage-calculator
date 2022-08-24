@@ -1,16 +1,18 @@
 "The Main File"
 
 import re
-from tkinter import Label, Tk, Frame
-from tkinter.messagebox import showinfo
+from tkinter import Label, Tk, Frame, filedialog
+from tkinter.messagebox import showinfo, askyesno
 from threading import Thread
 import sys
+import os
 import cv2
 import numpy as np
 from PIL import ImageGrab, Image
 import pyautogui as pg
 from pytesseract import pytesseract
 from win32gui import FindWindow, GetWindowRect
+
 
 
 img_dict = {
@@ -28,6 +30,18 @@ sellables = {
 }
 
 PATH_TO_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if not os.path.exists(PATH_TO_TESSERACT):
+    tesseract_installed = askyesno(
+        title="Tesseract not found",
+        message="Can't find Tesseract. Do you have it installed?",
+    )
+    if tesseract_installed:
+        PATH_TO_TESSERACT = filedialog.askopenfilename(
+            title="Select the location of tesseract.exe",
+            filetypes=[("Tesseract", "tesseract.exe")],
+        )
+    else:
+        sys.exit()
 pytesseract.tesseract_cmd = PATH_TO_TESSERACT
 window = Tk()
 info = Frame(window, name="info")
