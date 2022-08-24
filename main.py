@@ -225,7 +225,8 @@ def thing_locater(screen, filename, name):
 
 def scanner():
     "calls thing_locater in threads"
-    while True:
+    found_all = False
+    while not found_all:
         start_time = time.time()
         threads = []
         for filename, name in img_dict.items():
@@ -243,7 +244,10 @@ def scanner():
         for thread in threads:
             thread.join()
         print(f"---------------END - {(time.time() - start_time):.2f}")
-
+        
+        found_items = [get_value(item) for item in img_dict]
+        if all(found_items):
+           found_all = True            
 
 thread = Thread(target=scanner)
 thread.daemon = True
