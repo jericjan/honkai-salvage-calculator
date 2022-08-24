@@ -1,12 +1,14 @@
 "The Main File"
 
 import re
-from tkinter import Label, Tk, Frame, filedialog
+from tkinter import Label, Tk, Frame, filedialog, Button
 from tkinter.messagebox import showinfo, askyesno
 from threading import Thread
 import sys
 import os
 import time
+import math
+from datetime import datetime, timedelta
 
 import cv2
 import numpy as np
@@ -81,6 +83,10 @@ if get_window_size() != (1286, 749):
 
 def make_gui():
     "makes the GUI for the # of items, and items needed to be sold"
+    
+    scan_mats_button = Button(master=info,text="Scan Mats",command=lambda: run_in_thread(scanner))
+    scan_mats_button.pack()    
+    
     for name, clean_name in img_dict.items():
         lbl = Label(master=info, name=name, text=f"{clean_name}: [Not detected]")
         lbl.pack()
@@ -93,9 +99,50 @@ def make_gui():
         lbl.pack(side="left")
         lbl = Label(master=chunk_frame, name=name, text=f"?? {clean_name}")
         lbl.pack(side="left")
+    stam_button = Button(master=window,text="Calculate Stamina",command=lambda: run_in_thread(stamina))
+    stam_button.pack()
+    stam_text = Label(master=window,name="stam_text",text="")
+    stam_text.pack()
     window.title("Salvage calculator")
+    calc_thread = Thread(target=calculate)
+    calc_thread.daemon = True
+    calc_thread.start()    
 
-
+def stamina():
+    screen = np.array(ImageGrab.grab())
+    screen = cv2.cvtColor(src=screen, code=cv2.COLOR_BGR2RGB)
+    thing = pg.locate(f"images/stamina.png", screen, confidence=0.8)
+    if thing:
+        start_row = thing.top +10
+        end_row = thing.top + thing.height
+        start_column = thing.left + thing.width
+        end_column = start_column + 120
+        cropped = screen[start_row:end_row, start_column:end_column]
+        cropped = cv2.bitwise_not(cropped)
+        white = [255, 255, 255]
+        red = [0, 0, 255]
+        cropped = make_border(cropped, white, 5)
+        cropped = make_border(cropped, red, 3)
+        cropped = make_border(cropped, white, 2)
+        cropped = make_border(cropped, red, 1)    
+        text = pytesseract.image_to_string(cropped)
+        label = window.nametowidget(".stam_text")
+        if re.findall(r"\d{1,3}/\d{1,3}",text):
+            curr_stam, max_stam = [int(x) for x in text.strip().split('/')]
+            full_hours = (max_stam - curr_stam) / 10
+            hours = math.floor(full_hours)
+            if not (full_hours % 1) == 0:
+                minutes = (full_hours - hours) * 60
+            else:
+                minutes = 0
+            time_when_max = (datetime.now() + timedelta(hours=hours,minutes=minutes)).strftime('%b %d - %I:%M %p')
+            label.configure(text=f"{curr_stam}/{max_stam}\n" \
+            f"Full stamina in {hours}H:{minutes:.0f}M\n" \
+            f"{time_when_max}")
+        else:        
+            label.configure(text="I scanned it wrong.")
+    
+    
 def calculate():
     "calculates the # of items needed to be sold"
     shifter_count = get_value("phase_shifters")
@@ -104,7 +151,7 @@ def calculate():
         sell_will = will_count - (shifter_count / 3)
         sell_will = max(sell_will, 0)
         label = window.nametowidget(".solutions.0.twin_sakura_will")
-        label.configure(text=f"{sell_will} Twin Sakura Will(s)")
+        label.configure(text=f"{sell_will:.2f} Twin Sakura Will(s)")
 
     torus_count = get_value("torus")
     nano_count = get_value("nano")
@@ -112,7 +159,7 @@ def calculate():
         sell_nano = nano_count - ((torus_count * 45) / 100)
         sell_nano = max(sell_nano, 0)
         label = window.nametowidget(".solutions.1.nano")
-        label.configure(text=f"{sell_nano} Nanoceramic(s)")
+        label.configure(text=f"{sell_nano:.2f} Nanoceramic(s)")
 
     skill_mats_count = get_value("skill_mats")
     if skill_mats_count:
@@ -222,40 +269,31 @@ def thing_locater(screen, filename, name):
                 print(f"{name} - {text.strip()}")
                 label.configure(text=f"{name}: {text}")
 
-
+def run_in_thread(func):
+    le_thread = Thread(target=func)
+    le_thread.start()
 def scanner():
     "calls thing_locater in threads"
-    found_all = False
-    while not found_all:
-        start_time = time.time()
-        threads = []
-        for filename, name in img_dict.items():
-            print(f"Looking for {filename}...")
-            screen = np.array(ImageGrab.grab())
-            screen = cv2.cvtColor(src=screen, code=cv2.COLOR_BGR2RGB)
-            locater_thread = Thread(target=thing_locater, args=(screen, filename, name))
-            threads.append(locater_thread)
+    start_time = time.time()
+    threads = []
+    for filename, name in img_dict.items():
+        print(f"Looking for {filename}...")
+        screen = np.array(ImageGrab.grab())
+        screen = cv2.cvtColor(src=screen, code=cv2.COLOR_BGR2RGB)
+        locater_thread = Thread(target=thing_locater, args=(screen, filename, name))
+        threads.append(locater_thread)
 
-        # Start them all
-        for thread in threads:
-            thread.start()
+    # Start them all
+    for thread in threads:
+        thread.start()
 
-        # Wait for all to complete
-        for thread in threads:
-            thread.join()
-        print(f"---------------END - {(time.time() - start_time):.2f}")
+    print(f"---------------END - {(time.time() - start_time):.2f}")
         
-        found_items = [get_value(item) for item in img_dict]
-        if all(found_items):
-           found_all = True            
+        
 
-thread = Thread(target=scanner)
-thread.daemon = True
-thread2 = Thread(target=make_gui)
-thread2.daemon = True
-thread3 = Thread(target=calculate)
-thread3.daemon = True
-thread.start()
-thread2.start()
-thread3.start()
+
+gui_thread = Thread(target=make_gui)
+gui_thread.daemon = True
+gui_thread.start()
+
 window.mainloop()
