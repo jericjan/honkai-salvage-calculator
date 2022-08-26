@@ -9,7 +9,7 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{31E816D6-833D-4FA9-8629-D031F10AC55E}
 AppName=SalvageCalculator
-AppVersion=1.0
+AppVersion=2.0.0
 ;AppVerName=SalvageCalculator 1.0
 AppPublisher=Kur0
 AppPublisherURL=https://github.com/jericjan
@@ -35,7 +35,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "C:\Users\USER\Desktop\JJ\python\honkai-scanner\dist\SalvageCalculator\SalvageCalculator.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "C:\Users\USER\Desktop\JJ\python\honkai-scanner\dist\SalvageCalculator\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; These files will be downloaded
-Source: "{tmp}\tesseract-setup.exe"; DestDir: "{app}"; Flags: deleteafterinstall external
+Source: "{tmp}\tesseract-setup.exe"; DestDir: "{app}"; Flags: deleteafterinstall external skipifsourcedoesntexist
 ; Source: "tesseract-setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall external; ExternalSize: 56238080; Check: NotInstalled
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
@@ -84,25 +84,30 @@ begin
 end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
-  if CurPageID = wpReady then begin
-    DownloadPage.Clear;        
-    DownloadPage.Add(TesseractURL, 'tesseract-setup.exe', '');
-    DownloadPage.Show;
-    try
-      try
-        DownloadPage.Download; // This downloads the files to {tmp}
+  if NotInstalled then
+    begin
+      if CurPageID = wpReady then begin
+        DownloadPage.Clear;        
+        DownloadPage.Add(TesseractURL, 'tesseract-setup.exe', '');
+        DownloadPage.Show;
+        try
+          try
+            DownloadPage.Download; // This downloads the files to {tmp}
+            Result := True;
+          except
+            if DownloadPage.AbortedByUser then
+              Log('Aborted by user.')
+            else
+              SuppressibleMsgBox(AddPeriod(GetExceptionMessage), mbCriticalError, MB_OK, IDOK);
+            Result := False;
+          end;
+        finally
+          DownloadPage.Hide;
+        end;
+      end else
         Result := True;
-      except
-        if DownloadPage.AbortedByUser then
-          Log('Aborted by user.')
-        else
-          SuppressibleMsgBox(AddPeriod(GetExceptionMessage), mbCriticalError, MB_OK, IDOK);
-        Result := False;
-      end;
-    finally
-      DownloadPage.Hide;
-    end;
-  end else
+    end
+  else
     Result := True;
 end;
 
