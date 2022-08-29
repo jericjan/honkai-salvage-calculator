@@ -16,12 +16,13 @@ from customtkinter import (
     CTk as Tk,
     CTkFrame as Frame,
     CTkButton as Button,
+    CTkEntry as Entry,
 )
 import customtkinter
 
 import cv2
 import numpy as np
-from PIL import ImageGrab, Image
+from PIL import ImageGrab, Image, ImageTk
 import pyautogui as pg
 from pytesseract import pytesseract
 from win32gui import FindWindow, GetWindowRect
@@ -59,7 +60,7 @@ if not os.path.exists(PATH_TO_TESSERACT):
         sys.exit()
 pytesseract.tesseract_cmd = PATH_TO_TESSERACT
 window = Tk()
-window.geometry("436x331")
+window.geometry("466x375")
 frame1 = Frame(window, name="frame1")
 frame1.pack(side="top", pady=20)
 info = Frame(frame1, name="info")
@@ -106,21 +107,43 @@ def make_gui():
     )
     scan_mats_button.pack(pady=10)
 
-    for name, clean_name in img_dict.items():
-        var = StringVar(window, f"{clean_name}: [Not detected]", f"info_{name}")
-        lbl = Label(master=info, textvariable=var)
-        lbl.pack()
 
+    wgt_list = []
+    for name, clean_name in img_dict.items():
+        fram = Frame(master=info,name=f"frame_{name}")     
+        wgt_list.append((fram,"top"))
+        lbl = Label(master=fram, text=f"{clean_name}:")
+        wgt_list.append((lbl,"left"))
+        lbl = Label(master=fram,text="",width=10,name=f"img_{name}")
+        wgt_list.append((lbl,"left"))        
+        var = StringVar(window, "", f"info_{name}")
+        lbl = Entry(master=fram, textvariable=var, width=40,justify="center")
+        wgt_list.append((lbl,"left"))
+    for lbl,side in wgt_list:
+        lbl.pack(side=side)    
     lbl = Label(master=solutions_frame, text="You should sell:")
     lbl.pack(side="top")
     for name, clean_name in sellables.items():
         var = StringVar(window, f"?? {clean_name}", f"solutions_{name}")
         lbl = Label(master=solutions_frame, textvariable=var)
         lbl.pack(side="top")
+        
     stam_button = Button(
         master=frame2, text="Calculate Stamina", command=lambda: run_in_thread(stamina)
     )
     stam_button.pack(side="top", pady=10)
+    stam_img = Label(master=frame2, text="",name="stam_img")
+    stam_img.pack_forget()
+    stam_input_fram = Frame(master=frame2,name="stam_input_fram")     
+    stam_input_fram.pack()
+    var = StringVar(window, "", "info_curr_stam")
+    ent = Entry(master=stam_input_fram, textvariable=var, width=40,justify="center")
+    ent.pack(side="left")    
+    lbl = Label(master=stam_input_fram, text="/",width=10)
+    lbl.pack(side="left")
+    var = StringVar(window, "", "info_max_stam")
+    ent = Entry(master=stam_input_fram, textvariable=var, width=40,justify="center")
+    ent.pack(side="left")    
     var = StringVar(window, "", "stam_text")
     stam_text = Label(master=frame2, textvariable=var, name="stam_text")
     stam_text.pack_forget()
@@ -142,6 +165,14 @@ def stamina():
         end_column = start_column + 120
         cropped = screen[start_row:end_row, start_column:end_column]
         cropped = cv2.bitwise_not(cropped)
+        
+        pilimage = Image.fromarray(cropped)
+        img = ImageTk.PhotoImage(pilimage)
+        global_images["stamina"] = img
+        stam_img = window.nametowidget(".frame2.stam_img")
+        stam_input = window.nametowidget(".frame2.stam_input_fram")
+        stam_img.configure(image=img)        
+        stam_img.pack(before=stam_input)
         white = [255, 255, 255]
         red = [0, 0, 255]
         cropped = make_border(cropped, white, 5)
@@ -154,6 +185,52 @@ def stamina():
             curr_stam, max_stam = [
                 int(x) for x in re.findall(r"\d{1,3}/\d{1,3}", text)[0].split("/")
             ]
+            window.setvar("info_curr_stam", curr_stam)
+            window.setvar("info_max_stam", max_stam)
+        else:
+            window.setvar("stam_text", "I scanned it wrong.")
+        window.nametowidget(".frame2.stam_text").pack()
+    else:
+        window.setvar("stam_text", "I couldn't find the stamina logo.")
+        window.nametowidget(".frame2.stam_text").pack()
+
+
+
+def calculate():
+    "calculates the # of items needed to be sold"
+    def get_shifter_will():    
+        shifter_count = get_value("phase_shifters")
+        will_count = get_value("twin_sakura_will")
+        if shifter_count and will_count:
+            sell_will = will_count - (shifter_count / 3)
+            sell_will = max(sell_will, 0)
+            window.setvar(
+                "solutions_twin_sakura_will", f"{sell_will:.2f} Twin Sakura Will(s)"
+            )
+            
+    def torus_nano():
+        torus_count = get_value("torus")
+        nano_count = get_value("nano")
+        if torus_count and nano_count:
+            sell_nano = nano_count - ((torus_count * 45) / 100)
+            sell_nano = max(sell_nano, 0)
+            window.setvar("solutions_nano", f"{sell_nano:.2f} Nanoceramic(s)")
+
+        skill_mats_count = get_value("skill_mats")
+        if skill_mats_count:
+            sell_mats_1 = skill_mats_count - 80
+            sell_mats_2 = skill_mats_count - 30
+            sell_mats_1 = max(sell_mats_1, 0)
+            sell_mats_2 = max(sell_mats_2, 0)
+            window.setvar(
+                "solutions_skill_mats",
+                f"{sell_mats_1}-{sell_mats_2} Advanced Skill Material(s)",
+            )
+
+    def get_stam():
+        curr_stam = get_value("curr_stam")
+        max_stam = get_value("max_stam")
+        if curr_stam and max_stam:
             full_hours = (max_stam - curr_stam) / 10
             hours = math.floor(full_hours)
             if not (full_hours % 1) == 0:
@@ -165,47 +242,12 @@ def stamina():
             ).strftime("%b %d - %I:%M %p")
             window.setvar(
                 "stam_text",
-                f"{curr_stam}/{max_stam}\n"
                 f"Full stamina in {hours}H:{minutes:.0f}M\n"
                 f"{time_when_max}",
             )
-        else:
-            window.setvar("stam_text", "I scanned it wrong.")
-        window.nametowidget(".frame2.!ctklabel").pack()
-    else:
-        window.setvar("stam_text", "I couldn't find the stamina logo.")
-        window.nametowidget(".frame2.!ctklabel").pack()
-
-
-def calculate():
-    "calculates the # of items needed to be sold"
-    shifter_count = get_value("phase_shifters")
-    will_count = get_value("twin_sakura_will")
-    if shifter_count and will_count:
-        sell_will = will_count - (shifter_count / 3)
-        sell_will = max(sell_will, 0)
-        window.setvar(
-            "solutions_twin_sakura_will", f"{sell_will:.2f} Twin Sakura Will(s)"
-        )
-
-    torus_count = get_value("torus")
-    nano_count = get_value("nano")
-    if torus_count and nano_count:
-        sell_nano = nano_count - ((torus_count * 45) / 100)
-        sell_nano = max(sell_nano, 0)
-        window.setvar("solutions_nano", f"{sell_nano:.2f} Nanoceramic(s)")
-
-    skill_mats_count = get_value("skill_mats")
-    if skill_mats_count:
-        sell_mats_1 = skill_mats_count - 80
-        sell_mats_2 = skill_mats_count - 30
-        sell_mats_1 = max(sell_mats_1, 0)
-        sell_mats_2 = max(sell_mats_2, 0)
-        window.setvar(
-            "solutions_skill_mats",
-            f"{sell_mats_1}-{sell_mats_2} Advanced Skill Material(s)",
-        )
-
+    threads = [Thread(target=x) for x in [get_shifter_will,torus_nano,get_stam]]    
+    for thread in threads:
+        thread.start()
     window.after(1000, calculate)
 
 
@@ -215,7 +257,7 @@ def get_value(name):
         label = window.getvar(f"info_{name}")
     except TclError:
         return False
-    value = re.findall(r"\d+", label)
+    value = re.findall(r"\d+", str(label))
     if value:
         return int(value[0])
     return False
@@ -243,8 +285,10 @@ def make_border(img, color, thickness):
         value=color,
     )
 
+global_images = {}
 
 def thing_locater(screen, filename, name):
+    global global_images
     "Looks for the item on the screen and sends the amount to the GUI"
     thing = pg.locate(f"images/{filename}.png", screen, confidence=0.8)
     if thing:
@@ -282,21 +326,31 @@ def thing_locater(screen, filename, name):
         # inverts again, idk
         cropped = cv2.bitwise_not(cropped)
 
+        pilimage = Image.fromarray(cropped)
+        img = ImageTk.PhotoImage(pilimage)
+        global_images[filename] = img
+        window.nametowidget(f"frame1.info.frame_{filename}.img_{filename}").configure(image=img)
         # adds borders
         white = [255, 255, 255]
-        red = [0, 0, 255]
+        color1 = [0, 0, 255]
+        color2 = [255, 0, 0]
         cropped = make_border(cropped, white, 5)
-        cropped = make_border(cropped, red, 3)
-        cropped = make_border(cropped, white, 2)
-        cropped = make_border(cropped, red, 1)
-
+        cropped = make_border(cropped, color1, 3)
+        cropped = make_border(cropped, white, 5)
+        cropped = make_border(cropped, color2, 5)        
+        cropped = make_border(cropped, white, 5)
+        cropped = make_border(cropped, color1, 10)        
+        # cropped = make_border(cropped, black, 3)
+        # cropped = make_border(cropped, white, 2)
+        # cropped = make_border(cropped, black, 1)      
         # reads the numbers
         text = pytesseract.image_to_string(cropped)
         if text.strip():
+            print(f"Found: {text.strip()}")
             text = text.strip()
             if re.search(r"x +\d+|x\d+|\d+", text):
                 text = re.findall(r"\d+", text)[0]
-                window.setvar(f"info_{filename}", f"{name}: {text}")
+                window.setvar(f"info_{filename}", f"{text}")
 
 
 def run_in_thread(func):
@@ -327,5 +381,11 @@ gui_thread = Thread(target=make_gui)
 gui_thread.daemon = True
 gui_thread.start()
 
+#get window size for testing
+# def test():
+    # print(f"{window.winfo_width()}x{window.winfo_height()}")
+    # window.after(1000, test)
+# thread = Thread(target=test)
+# thread.start()
 
 window.mainloop()

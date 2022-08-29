@@ -3,3 +3,4 @@ tk==0.1.0
 pywin32==304
 PyAutoGUI==0.9.53
 opencv-python==4.6.0.66
+-e git+https://github.com/jericjan/CustomTkinter.git@b04ff1ae6bf05d242e54acedaf941af3f5d781fa#egg=customtkinter
